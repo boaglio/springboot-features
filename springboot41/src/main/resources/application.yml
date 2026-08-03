@@ -1,0 +1,7 @@
+spring:
+  task:
+    execution:
+      # Required for the @Async sample: Boot only decorates the task executor
+      # with ContextPropagatingTaskDecorator (carrying Micrometer trace context
+      # onto the async thread) when this is explicitly enabled.
+      propagate-context: true

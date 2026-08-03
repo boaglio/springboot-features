@@ -1,0 +1,52 @@
+# Backing services only. Spring Boot's docker-compose support (see the
+# spring-boot-docker-compose dependency in pom.xml) auto-detects this file
+# and starts/stops these containers whenever the app itself is run locally
+# (IDE, `mvn spring-boot:run`, or the jar) — no `docker compose up` needed.
+#
+# Connection details (host/port/credentials) are wired automatically via
+# Spring Boot's service connection support based on the "mongo" image, so no
+# spring.mongodb.* properties are needed here.
+#
+# The OTel Collector has no auto-wired connection details, but none are
+# needed either: it listens on the same host ports (4317/4318) that
+# spring-boot-starter-opentelemetry's OTLP exporters already target by
+# default, so it's picked up with zero extra Spring config.
+#
+# grafana/otel-lgtm bundles an OTel Collector with Grafana + Tempo (traces) +
+# Mimir/Prometheus (metrics) + Loki (logs) in one image, all pre-wired
+# together - so unlike a bare collector, what it receives is actually
+# viewable: open http://localhost:3000 (admin/admin) and explore traces and
+# metrics as you hit the app, instead of grepping collector debug logs.
+#
+# For a fully containerized run (app included), use docker-compose.full.yml.
+services:
+  mongo:
+    image: mongo:7
+    container_name: springboot40-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  otel-collector:
+    image: grafana/otel-lgtm:0.11.4
+    container_name: springboot40-otel-collector
+    ports:
+      - "3000:3000" # Grafana UI (admin/admin)
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo-data:

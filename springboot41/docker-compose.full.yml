@@ -1,0 +1,74 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: springboot41:latest
+    container_name: springboot41-app
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # Default OTLP exporters target localhost:4318, which inside this
+      # container is the app itself, not the collector container.
+      MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-collector:4318/v1/metrics
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      # No Actuator on the classpath for this sample project, so fall back to a
+      # plain TCP probe against the HTTP port instead of /actuator/health.
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - springboot41-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: springboot41-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - springboot41-net
+
+  otel-collector:
+    image: grafana/otel-lgtm:0.11.4
+    container_name: springboot41-otel-collector
+    ports:
+      # Host ports offset from springboot40's so both projects' full stacks
+      # can run at once; the app talks to the collector over the internal
+      # docker network on the standard 4317/4318, unaffected by this.
+      - "3001:3000" # Grafana UI (admin/admin)
+      - "4417:4317" # OTLP gRPC
+      - "4418:4318" # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - springboot41-net
+
+volumes:
+  redis-data:
+
+networks:
+  springboot41-net:
+    driver: bridge

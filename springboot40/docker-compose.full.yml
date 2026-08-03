@@ -1,0 +1,69 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: springboot40:latest
+    container_name: springboot40-app
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring Boot 4.0 moved Mongo autoconfiguration out from under
+      # spring.data.mongodb.* to its own spring.mongodb.* prefix.
+      SPRING_MONGODB_URI: mongodb://mongo:27017/springboot40
+      # Default OTLP exporters target localhost:4318, which inside this
+      # container is the app itself, not the collector container.
+      MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-collector:4318/v1/metrics
+      MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      mongo:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - springboot40-net
+
+  mongo:
+    image: mongo:7
+    container_name: springboot40-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - springboot40-net
+
+  otel-collector:
+    image: grafana/otel-lgtm:0.11.4
+    container_name: springboot40-otel-collector
+    ports:
+      - "3000:3000" # Grafana UI (admin/admin)
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - springboot40-net
+
+volumes:
+  mongo-data:
+
+networks:
+  springboot40-net:
+    driver: bridge

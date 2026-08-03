@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: springboot40
+
+management:
+  observations:
+    annotations:
+      enabled: true # required for @Counted / @Timed / @MeterTag scanning (sample #2)
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics

@@ -1,0 +1,55 @@
+# Backing services only. Spring Boot's docker-compose support (see the
+# spring-boot-docker-compose dependency in pom.xml) auto-detects this file
+# and starts/stops these containers whenever the app itself is run locally
+# (IDE, `mvn spring-boot:run`, or the jar) — no `docker compose up` needed.
+#
+# Connection details (host/port/credentials) are wired automatically via
+# Spring Boot's service connection support based on the "redis" image, so no
+# spring.data.redis.* properties are needed here. H2 stays in-process, so it
+# has no container.
+#
+# The OTel Collector has no auto-wired connection details, but Spring Boot's
+# service connection support resolves whichever host port actually got
+# mapped (it doesn't require 4317/4318 specifically), so it's picked up with
+# zero extra Spring config regardless of the host ports below. Non-default
+# host ports are used here so this project's collector doesn't collide with
+# springboot40's when both are running locally at once.
+#
+# grafana/otel-lgtm bundles an OTel Collector with Grafana + Tempo (traces) +
+# Mimir/Prometheus (metrics) + Loki (logs) in one image, all pre-wired
+# together - so unlike a bare collector, what it receives is actually
+# viewable: open http://localhost:3001 (admin/admin) and explore traces and
+# metrics as you hit the app, instead of grepping collector debug logs.
+#
+# For a fully containerized run (app included), use docker-compose.full.yml.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: springboot41-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  otel-collector:
+    image: grafana/otel-lgtm:0.11.4
+    container_name: springboot41-otel-collector
+    ports:
+      - "3001:3000" # Grafana UI (admin/admin)
+      - "4417:4317" # OTLP gRPC
+      - "4418:4318" # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  redis-data:

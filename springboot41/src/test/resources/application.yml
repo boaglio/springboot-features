@@ -1,0 +1,15 @@
+spring:
+  autoconfigure:
+    # OrderSubscriber (@RedisListener) auto-registers a RedisMessageListenerContainer
+    # that connects eagerly on context startup. Every other sample shares the same
+    # SpringBoot41Application context, so without this exclusion their tests would
+    # fail trying to reach a Redis instance they don't need. OrderSubscriberTests
+    # clears this property to re-enable Redis for its own context.
+    exclude: org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+  task:
+    execution:
+      # A classpath application.yml in src/test/resources fully SHADOWS the one in
+      # src/main/resources - it does not layer on top of it. So the propagate-context
+      # setting from the main app config must be repeated here, or @Async context
+      # propagation silently stops working in every test.
+      propagate-context: true
